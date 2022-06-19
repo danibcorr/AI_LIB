@@ -1,4 +1,4 @@
-# AI_LIB
+# AI LIBRERY
 
 Repositorio para almacenar utilidades a la hora de programar.
 
