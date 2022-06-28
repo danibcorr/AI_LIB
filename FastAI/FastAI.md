@@ -1,18 +1,34 @@
 # FastAI
 
+## Bibliografía
+
+La mayor parte de la información se ha obtenido del libro "Deep Learning for Coders with Fast-AI & PyTorch".
+
 # Índice
 
 [TOC]
 
-# Bibliografía
 
-La mayor parte de la información se ha obtenido del libro "Deep Learning for Coders with Fast-AI & PyTorch".
 
 # Útiles
 
+## Montar unidad de Google Drive en Google Collab
+
+```python
+from google.colab import drive
+drive.mount('/content/gdrive')
+```
+
+## Dudas con métodos/funciones en FastAI, documentación
+
+```python
+# Ejemplo
+doc(learn.predict)
+```
 
 
-# Capítulo 1
+
+# Capítulo 1: Visión
 
 ## 1.1. Reconocimiento de perros y gatos
 
@@ -84,13 +100,13 @@ print(f"Probabilidad de que sea un gato: {probs[1].item():.6f}")
 
   Recordar que un modelo pre-entrenado es un modelo cuyos pesos ya han sido adaptados y ajustados para una tarea. Con fine-tuning o ajuste fino conseguimos eliminar la última capa junto a sus pesos y la ajustamos a la nueva tarea (tener en cuenta que han de ser tareas similares entrenadas anteriormente y ahora con datos del mismo tipo, por ejemplo si el modelo fue entrenado con imágenes el dataset nuevo a emplear han de ser también basado en imágenes)
 
-+ Podríamos emplear en transformaciones en un conjunto reducido de imágenes llamado **"batch"** y que permite ser alojados en la memoria RAM de la GPU, esto permite hacer el proceso de una manera más rápida. **Pero** hay que tener cuidado de no utilizar un **"batch_size"** (un tamaño de lote) muy grande ya que la GPU se podría quedar sin memoria RAM y a la hora de entrenar el modelo daría problemas relacionados con CUDA.
++ Podríamos emplear en transformaciones en un conjunto reducido de imágenes llamado **"batch"** y que permite ser alojados en la memoria RAM de la GPU, esto permite hacer el proceso de una manera más rápida. **Pero** hay que tener cuidado de no utilizar un **"batch_size"** (un tamaño de lote) muy grande ya que la GPU se podría quedar sin memoria RAM y a la hora de entrenar el modelo daría problemas tales como "CUDA out of memory error", si esto ocurre, tenemos que  reducir el tamaño del batch y reiniciar el kernel de Jupyter en caso de usarlo.
 
 + **Es importante saber que una clasificación pretende predecir una clase o categoría mientras que un modelo de regresión intenta predecir 1 0 más cantidades numéricas**.
 
 + **Metrics son distintas a la función de pérdida**
 
-## 1.2. Segmentación de imágenes
+## 1.2. Segmentación de imágenes, UNET
 
 ### 1.2.1. Código
 
@@ -155,4 +171,65 @@ learn.show_results(max_n = 6, figsize = (7, 8))
 ![0012](D:\Documentos\Propios\AI_LIB\FastAI\Imagenes\0012.jpg)
 
 ![0013](D:\Documentos\Propios\AI_LIB\FastAI\Imagenes\0013.jpg)
+
+# Capítulo 2: Procesamiento del Lenguaje Natural, NLP
+
+## 2.1. Análisis de reseñas/sentimientos, dataset IMDB
+
+### 2.1.1. Código
+
+```python
+!pip install -Uqq fastbook
+import fastbook
+fastbook.setup_book()
+
+# Los datos empleados en este problema son textos, las mejores arquitecturas para procesamiento
+# de textos podría ser RNN (Redes Neuronales Recurrentes), Transformers o aplicar
+# algoritmos de Machine Learning y no Deep Learning. 
+# En este caso, queremos ver la relación de las palabras en el contexto de la oración
+# al completo con el fin de conocer el contexto y aprender de este.
+from fastai.text.all import *
+
+path = untar_data(URLs.IMDB)
+
+# El dataset cuenta con una carpeta con el texto para el entrenamiento y la validacion, 
+# es decir, se encuentra separado por carpetas. Seleccionamos la carpeta para los
+# datos de validación.
+dls = TextDataLoaders.from_folders(path = path,
+								   valid = 'test')
+
+# En concreto vamos a utilizar redes LSTM (Long Short Term Memory)
+# LSTM tienen múltiples probabilidades de abandono (drop out) para diferentes cosas. 
+# Una vez establecidas, drop_mult escalará todas ellas, permitiendo cambiar todas las probabilidades 
+# del drop out simultáneamente usando drop_mult.
+leran = text_classifier_learner(dls = dls,
+                                arch = AWD_LSTM, drop_mult = 0.5, metrics = accuracy)
+
+# Realizamos 4 número de épocas.
+# base_lr -> learning rate, ratio de aprendizaje, es el tamaño del paso a la hora de realizar
+# SGD (Stochastic Gradient Descent) para obtener el mínimo en la función. 
+# Un learning rate alto, hará que nos alejemos del mínimo de la función,
+# mientras que un learning rate bajo el aprendizaje será muy lento.
+learn.fine_tune(4, base_lr = 1e-2)
+
+learn.predict("""
+				El otro día vimos la película de Buzz Lightyear en cines y la verdad que nos encantó la película,
+             	nos recordó a nuestra infancia.
+			""")
+```
+
+## 2.2. Datos tabulares (datos en tablas), predecir salario
+
+```python
+!pip install -Uqq fastbook
+import fastbook()
+fastbook.setup_book()
+
+from fastai.tabular.all import *
+
+path = untar_data(URLs.ADULT_SAMPLE)
+
+nombres_categorias = ['workclass', 'education', 'marital_status', 'occupation', 'relationship', 'race']
+
+```
 
