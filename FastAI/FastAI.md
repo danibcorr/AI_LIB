@@ -1,6 +1,6 @@
 # FastAI
 
-Última actualización, 01/07/2022.
+Última actualización, 03/07/2022.
 
 ## Bibliografía e Información
 
@@ -229,6 +229,20 @@ learn.show_results(max_n = 6, figsize = (7, 8))
 
 + En este ejercicio no se parte de ningún dataset, **vamos a crear el nuestro propio dataset** con el fin de ver que con **FastAI podemos crear modelos que se adapten a nuestros datos**. Para ello **usaremos los DataLoaders y DataBlocks**.
 
++ A la hora de hacer transformaciones en los datos reduciendo la resolución a 128 pixeles podemos perder información de las imágenes, por lo que en vez de utilizar:
+
+  ```
+  item_tfms = Resize(128)
+  ```
+
+  podríamos utilizar:
+
+  ```
+  item_tfms = RandomResizedCrop(size = 224, min_scale = 0.5)
+  ```
+
+  **RandomResizedCrop** permite elegir zonas aleatorias de la imagen, min_scale determina cuánto de la imagen vamos a seleccionar como mínimo (el mínimo área posible). Con ello se consigue aumentar los datos sin cambiar el significado de estos.
+
 ### 1.3.2. Código
 
 ```python
@@ -281,6 +295,14 @@ class DataLoaders(GetAttr):
     
     train, valid = add_props(lambda i, self: self[i])
 
+# get_item_files -> permite obtener una ruta y devolver todas las imágenes de dicha ruta
+# splitter -> divide el set de entrenamiento y validación de manera aleatoria,
+# dejando un 20% de los datos para validación (valid_pct = 0.2)
+# parent_label -> permite obtener como etiquetas (y) el nombre de la carpeta
+# en la que se encuentra un archivo
+# item_tfms -> como todas las imágenes serán de tamaños diferentes y tenemos
+# que agruparlas en un tensor, tenemos que transformarlas todas a una misma resolución,
+# en este caso, con una resolución de 128 x 128.
 bears = DataBlock(
     		# Tupla para especificar (x, y), siendo 'x' la variable independiente, lo que usamos
     		# para hacer predicciones, en este caso imágenes e 'y' la varibale dependiente,
@@ -289,8 +311,127 @@ bears = DataBlock(
     		get_items = get_item_files,
     		splitter = RandomSplitter(valid_pct = 0.2, seed = 42),
     		get_y = parent_label,
-    		item_tfms = Resize(128)
+    		item_tfms = Resize(128) # Mejor usar RandomResizedCrop(size = 224, min_scale = 0.5),
 			)
+
+# Por defecto, FastAI coge un tamaño de batch de 64
+dls = bears.dataloaders(path, bs = 64)
+
+# Mostramos algunas de las imágenes para ver que los datos son correctos
+dls.valid.show_batch(max_n = 4, nrows = 1)
+
+learn.vision_learner(dls, resnet18, metrics = [accuracy, error_rate])
+
+learn.fine_tune(4)
+
+# Matriz de confusión, para ver si las predicciones coninciden con las etiquetas reales
+interp = CassificationInterpretation.from_learner(learn)
+interp.plot_confusion_matrix()
+
+# En caso de ver que hay muchas predicciones incorrectas podemos limpiar los datos,
+# para ello FastAI ofrece herramientas de data cleaning
+# Primero vamos a ordenar las imágenes con el valor numérico más alto de la función
+# de pérdida (Loss function) con el fin de ver qué imagenes se han predecido de forma
+# incorrecta
+interp.plot_top_losses(5, nrows = 1)
+
+# Hacemos la limpieza
+from fastai.vision.widgets import *
+
+cleaner = ImageClassifierCleaner(learn)
+
+for i in cleaner.delete():
+    cleaner.fns[i].unlink()
+
+# Si queremos mover imágenes a otra categoría
+for i, cat in cleaner.change():
+    shutil.move(str(cleaner.fns[i]), path/cat)
+    
+    
+# Una vez el modelo está entrenado y tiene una precisión aceptable para los datos,
+# no hace overfitting y se adapta bien a nuestro problema, podemos llevarlo a una aplicación
+# estaríamos pasando de un modelo a una inferencia.
+
+# Exportamos el modelo
+learn.export()
+
+# Ver si se ha creado el fichero de la inferencia del modelo
+path.ls(file_exts = '.pkl')
+
+learn_inf = load_learner(path/'export.pkl')
+
+learn_inf.predict('nombre_imagen_a_predecir')
+```
+
+## 1.4. Control de calidad de patatas por visión
+
+### 1.4.1. Notas
+
++ La idea consistía en poder aplicar CNN para el control de calidad de productos, para ello se escogió un set de datos de **Kaggle**, "PepsiCo Lab Potato Chips Quality Control" ([PepsiCo Lab Potato Chips Quality Control | Kaggle](https://www.kaggle.com/datasets/concaption/pepsico-lab-potato-quality-control)).
++ La distribución de las carpetas era:
+  + Patatas
+    + Train
+      + Defective (369 imágenes)
+      + NonDefective (400 imágenes)
+    + Test
+      + Defective (92 imágenes)
+      + NonDefective (100 imágenes)
+
+### 1.4.2. Código
+
+```python
+!pip install fastbook
+import fastbook
+fastbook.setup_book()
+
+from fastbook import *
+from fastai import *
+from fastai.vision import *
+from fastai.vision.data import ImageDataLoaders
+
+# Comprobamos la longitud de las listas de ficheros si corresponden con el número de imágenes de 
+# las carpetas
+train_fnames_defective = get_image_files('/Patatas/train/Defective')
+train_fnames_nondefective = get_image_files('/Patatas/train/NonDefective')
+test_fnames_defective = get_image_files('/Patatas/test/Defective')
+test_fnames_nondefective = get_image_files('/Patatas/test/NonDefective')
+L(train_fnames_defective, train_fnames_nondefective, test_fnames_defective, test_fnames_nondefective)
+
+# Aplicamos transformaciones con tamaños de 224 cogiendo trozos de imagen de manera aleatoria
+# con un batch size de 16 debido a las limitaciones de memoria de la GPU de Google Collab,
+# si se tiene suficiente memoria probar con 32.
+data = ImageDataLoaders.from_folder(path = path, train = 'Train', valid = 'Test',
+                                   item_tfms = RandomResizedCrop(size = 224, min_scale = 0.5),
+                                   bs = 16
+                                   )
+
+data.show_batch(max_n = 4, nrows = 1)
+
+learn = vision_learner(data, resnet34, metrics = [accuracy, error_rate])
+
+learn.fine_tune(4)
+
+interp = ClassificationInterpretation.from_learner(learn)
+interp.plot_confusion_matrix()
+
+# Conseguida una precisión óptima, exportamos el modelo
+learn.export()
+
+# Ver si se ha creado el fichero de la inferencia del modelo
+path.ls(file_exts = '.pkl')
+
+# Cargamos el modelo ya entrenado
+learn_inf = load_learner(path/'export.pkl')
+
+# Para probarlo podemos usar los Widgets de Python y Jupyter y subir una foto
+btn_upload = widgets.FileUpload()
+btn_upload
+
+img = PILImage.create(btn_upload.data[-1])
+
+pred, pred_idx, probs = learn_inf.predict(img)
+
+print(f"Prediccion: {pred}, Probabilidad: {probs[pred_idx]}")
 ```
 
 
